@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>绩效档次查询 · 正式员工</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#ffffff; --ink:#1f2430; --sub:#6b7280;
+    --line:#e5e7eb; --brand:#2f6fed; --brand-soft:#eaf1fe;
+    --ok:#0a7d43; --ok-soft:#e6f6ee; --warn:#b45309; --warn-soft:#fdf3e3;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:var(--bg); color:var(--ink); min-height:100vh; padding:24px 14px 60px;
+  }
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:22px;margin-bottom:4px}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:20px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:18px 16px; margin-bottom:16px;
+  }
+  .card h2{font-size:15px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .card h2 .tag{font-size:11px;font-weight:600;color:var(--brand);background:var(--brand-soft);
+    border-radius:6px;padding:2px 8px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .field{flex:1;min-width:180px}
+  .field label{display:block;font-size:12px;color:var(--sub);margin-bottom:6px}
+  .field input,.field select{
+    width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+    font-size:16px;background:#fafbfc;outline:none;transition:border .15s;
+  }
+  .field input:focus,.field select:focus{border-color:var(--brand);background:#fff}
+  .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{
+    flex:1;padding:10px 0;border:none;background:#fafbfc;font-size:14px;cursor:pointer;
+    color:var(--sub);transition:.15s;
+  }
+  .seg button.on{background:var(--brand);color:#fff;font-weight:600}
+  .result{margin-top:14px;border-radius:12px;padding:14px 16px;display:none}
+  .result.show{display:block;animation:pop .18s ease-out}
+  @keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .result .pct{font-size:34px;font-weight:700;line-height:1.1}
+  .result .band{font-size:13px;margin-top:6px;color:var(--sub)}
+  .result.r-ok{background:var(--ok-soft)} .result.r-ok .pct{color:var(--ok)}
+  .result.r-mid{background:var(--brand-soft)} .result.r-mid .pct{color:var(--brand)}
+  .result.r-warn{background:var(--warn-soft)} .result.r-warn .pct{color:var(--warn)}
+  .result.r-out{background:#f3f4f6} .result.r-out .pct{color:var(--sub);font-size:22px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+  th,td{border:1px solid var(--line);padding:7px 6px;text-align:center;white-space:nowrap}
+  th{background:#f0f3f9;font-weight:600}
+  td.on{background:var(--brand-soft);color:var(--brand);font-weight:700}
+  .caption{font-size:12px;color:var(--sub);margin-top:10px;line-height:1.7}
+  .foot{font-size:11.5px;color:#9ca3af;margin-top:18px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>绩效档次查询</h1>
+  <div class="sub">正式员工 · 人效占 60%，原始成绩占 40% · 数据来源：档次表截图（2026-10-17）</div>
+
+  <!-- 人效 -->
+  <div class="card">
+    <h2>人效 <span class="tag">占 60%</span></h2>
+    <div class="row">
+      <div class="field" style="flex:0 0 200px">
+        <label>序列</label>
+        <div class="seg" id="seg">
+          <button class="on" data-t="hotline">热线</button>
+          <button data-t="online">在线</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>人效分数 X</label>
+        <input id="rx" type="number" step="0.01" placeholder="输入分数">
+      </div>
+    </div>
+    <div class="result" id="rr"></div>
+  </div>
+
+  <!-- 原始成绩 -->
+  <div class="card">
+    <h2>原始成绩 <span class="tag">占 40%</span></h2>
+    <div class="row">
+      <div class="field">
+        <label>原始成绩分数 X</label>
+        <input id="sx" type="number" step="0.01" placeholder="输入分数">
+      </div>
+    </div>
+    <div class="result" id="sr"></div>
+  </div>
+
+  <!-- 综合参考 -->
+  <div class="card" id="combo-card" style="display:none">
+    <h2>综合档位 <span class="tag">参考拟算</span></h2>
+    <div class="result show" id="cr" style="margin-top:0"></div>
+    <div class="caption">按 人效档位 × 60% + 成绩档位 × 40% 拟算。若贵司综合规则不是这个加权方式，请以此行为准忽略本卡。</div>
+  </div>
+
+  <!-- 映射表 -->
+  <div class="card">
+    <h2>完整映射表</h2>
+    <div style="overflow-x:auto"><table id="tbl"></table></div>
+    <div class="caption">
+      区间约定：40% 档与 120% 档向外开放（≤ / ＞），中间档左开右闭。
+      「在线」序列低于 117 分在表内无对应档位。
+    </div>
+  </div>
+
+  <div class="foot">
+    档位顺序：40 / 50 / 60 / 70 / 80 / 90 / 100 / 110 / 120（%）。
+    本工具为纯本地页面，不联网、不上传任何数据。
+  </div>
+</div>
+
+<script>
+// ===== 档位定义（与截图逐格核对）=====
+const GRADES = ["40%","50%","60%","70%","80%","90%","100%","110%","120%"];
+
+// 每行 9 个区间：[lo, hi, loOpen, hiOpen]，hiOpen=true 表示 ≤，false 表示 <
+const ROWS = {
+  hotline: {
+    name: "人效 · 热线（60%）",
+    // 40%: X<=60 → 开放下界，用 lo=-Infinity, hi=60, hiOpen=true
+    bands: [
+      [-Infinity, 60, false, true],
+      [60, 63, true, true], [63, 66, true, true], [66, 69, true, true],
+      [69, 72, true, true], [72, 75, true, true], [75, 80, true, true],
+      [80, 85, true, true], [85, Infinity, true, false],
+    ],
+  },
+  online: {
+    name: "人效 · 在线（60%）",
+    bands: [
+      [117, 120, true, true], [120, 123, true, true], [123, 126, true, true],
+      [126, 129, true, true], [129, 132, true, true], [132, 135, true, true],
+      [135, 140, true, true], [140, 145, true, true], [145, Infinity, true, false],
+    ],
+    min: 117, // 低于此分无档
+  },
+  score: {
+    name: "原始成绩（40%）",
+    bands: [
+      [-Infinity, 80, false, false], // X<80
+      [80, 82, false, false], [82, 84, false, false], [84, 86, false, false],
+      [86, 88, false, false], [88, 90, false, false], [90, 92, false, false],
+      [92, 94, false, false], [94, Infinity, false, false], // 94<=X
+    ],
+  },
+};
+
+function hit(row, x) {
+  const r = ROWS[row];
+  if (r.min != null && x <= r.min) return -1; // 表外
+  for (let i = 0; i < r.bands.length; i++) {
+    const [lo, hi, loOpen, hiOpen] = r.bands[i];
+    const okLo = loOpen ? x > lo : x >= lo;
+    const okHi = hiOpen ? x <= hi : x < hi;
+    if (okLo && okHi) return i;
+  }
+  return -1;
+}
+
+const pct = v => parseFloat(v.replace("%",""));
+function tone(i) {
+  if (i < 0) return "r-out";
+  const p = pct(GRADES[i]);
+  if (p >= 100) return "r-ok";
+  if (p >= 70) return "r-mid";
+  return "r-warn";
+}
+
+function show(el, i, row, x, extra) {
+  el.className = "result show " + tone(i);
+  if (i < 0) {
+    const r = ROWS[row];
+    el.innerHTML = "<div class='pct'>表内无对应档位</div><div class='band'>" +
+      (r.min != null ? "「" + r.name + "」最低档起点为 " + r.min + " 分（不含），当前 " + x + " 分低于表内范围。" : "未落入任何区间。") +
+      "</div>";
+  } else {
+    el.innerHTML = "<div class='pct'>" + GRADES[i] + "</div><div class='band'>" +
+      ROWS[row].name + " · " + extra + " → 第 " + (i+1) + " 档（共 9 档）</div>";
+  }
+}
+
+// ===== 人效 =====
+let seq = "hotline";
+const rx = document.getElementById("rx"), rr = document.getElementById("rr");
+document.getElementById("seg").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  seq = b.dataset.t;
+  document.querySelectorAll("#seg button").forEach(x => x.classList.toggle("on", x === b));
+  runR();
+});
+function runR() {
+  const v = parseFloat(rx.value);
+  if (isNaN(v)) { rr.className = "result"; return; }
+  const i = hit(seq, v);
+  const r = ROWS[seq];
+  let bandText = i >= 0 ? describe(r.bands[i]) : "";
+  show(rr, i, seq, v, bandText);
+  runCombo();
+}
+function describe([lo, hi, loOpen, hiOpen]) {
+  if (lo === -Infinity) return hiOpen ? "X ≤ " + hi : "X < " + hi;
+  if (hi === Infinity) return "X > " + lo;
+  return (loOpen ? lo + " < X" : lo + " ≤ X") + (hiOpen ? " ≤ " + hi : " < " + hi);
+}
+
+// ===== 原始成绩 =====
+const sx = document.getElementById("sx"), sr = document.getElementById("sr");
+function runS() {
+  const v = parseFloat(sx.value);
+  if (isNaN(v)) { sr.className = "result"; runCombo(); return; }
+  const i = hit("score", v);
+  show(sr, i, "score", v, i >= 0 ? describe(ROWS.score.bands[i]) : "");
+  runCombo();
+}
+
+// ===== 综合 =====
+const comboCard = document.getElementById("combo-card"), cr = document.getElementById("cr");
+function runCombo() {
+  const rv = parseFloat(rx.value), sv = parseFloat(sx.value);
+  const ri = isNaN(rv) ? -2 : hit(seq, rv);
+  const si = isNaN(sv) ? -2 : hit("score", sv);
+  if (ri === -2 && si === -2) { comboCard.style.display = "none"; return; }
+  comboCard.style.display = "";
+  if (ri === -1 || si === -1) {
+    cr.className = "result show r-out";
+    cr.innerHTML = "<div class='pct'>无法拟算</div><div class='band'>至少一项落在表外。</div>";
+    return;
+  }
+  const nums = [];
+  if (ri >= 0) nums.push([pct(GRADES[ri]), 0.6, "人效 " + GRADES[ri]]);
+  if (si >= 0) nums.push([pct(GRADES[si]), 0.4, "成绩 " + GRADES[si]]);
+  const wsum = nums.reduce((a, n) => a + n[1], 0);
+  const combo = nums.reduce((a, n) => a + n[0] * n[1], 0) / wsum;
+  cr.className = "result show r-mid";
+  cr.innerHTML = "<div class='pct'>" + combo.toFixed(1) + "%</div><div class='band'>" +
+    nums.map(n => n[2] + " × " + (n[1] * 100).toFixed(0) + "%").join("　+　") + "</div>";
+}
+rx.addEventListener("input", runR);
+sx.addEventListener("input", runS);
+
+// ===== 映射表渲染 =====
+const tbl = document.getElementById("tbl");
+let h = "<tr><th>考核项</th>" + GRADES.map(g => "<th>" + g + "</th>").join("") + "</tr>";
+function fmt([lo, hi, loOpen, hiOpen]) {
+  if (lo === -Infinity) return hiOpen ? "X≤" + hi : "X<" + hi;
+  if (hi === Infinity) return "X>" + lo;
+  const l = loOpen ? lo + "&lt;X" : lo + "≤X";
+  return l + (hiOpen ? "≤" + hi : "&lt;" + hi);
+}
+for (const key of ["hotline", "online", "score"]) {
+  h += "<tr><th>" + ROWS[key].name.split("（")[0] + "</th>" +
+    ROWS[key].bands.map(b => "<td>" + fmt(b) + "</td>").join("") + "</tr>";
+}
+tbl.innerHTML = h;
+</script>
+</body>
+</html>
